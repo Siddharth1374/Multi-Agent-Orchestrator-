@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multi-Agent Orchestrator</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#020617;
+    --panel: #0b1224;
+    --card: #111a2f;
+    --card-border: #2b3750;
+    --chip: #243049;
+    --icon-box: #2a3650;
+    --text: #f1f5f9;
+    --muted: #8391a8;
+    --soft: #b4c0d4;
+    --green: #00c98a;
+    --green-btn: #00b97d;
+    --green-btn-hover: #00a56f;
+    --amber: #f5b942;
+    --red: #f87171;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.45;
+  }
+  svg.i { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 36px 36px 64px; }
+
+  /* Header */
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 40px; flex-wrap: wrap; }
+  h1 { margin: 0 0 8px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(30px, 4vw, 42px); font-weight: 700; color: var(--green); letter-spacing: -0.5px; }
+  .subtitle { margin: 0; font-size: 17px; color: var(--muted); }
+  .pills { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 12px; padding: 14px 22px; border-radius: 999px; font-size: 17px; font-weight: 500; background: rgba(0, 201, 138, .1); color: var(--green); transition: all .25s; white-space: nowrap; }
+  .pill .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+  .pill.running { background: rgba(245, 185, 66, .12); color: var(--amber); }
+  .pill.running .dot { animation: pulse 1s ease-in-out infinite; }
+  .pill.error { background: rgba(248, 113, 113, .12); color: var(--red); }
+  .pill.demo { padding: 8px 14px; font-size: 13px; background: rgba(245, 185, 66, .1); color: var(--amber); }
+
+  /* Layout */
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 400px; gap: 32px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+  .panel { background: var(--panel); border-radius: 22px; padding: 22px 20px 20px; }
+  .panel-title { display: flex; align-items: center; gap: 12px; margin: 0 0 20px 0; font-size: 22px; font-weight: 600; }
+  .panel-title .i { color: var(--green); font-size: 26px; }
+  .panel-title .spacer { flex: 1; }
+
+  /* Agent cards */
+  .agent { background: var(--card); border: 1px solid var(--card-border); border-radius: 18px; transition: border-color .25s, box-shadow .25s; overflow: hidden; }
+  .agent-row { display: flex; align-items: center; gap: 18px; padding: 20px; cursor: default; }
+  .agent.has-output .agent-row { cursor: pointer; }
+  .agent-icon { width: 50px; height: 50px; border-radius: 12px; background: var(--icon-box); display: grid; place-items: center; color: #d5dcea; font-size: 26px; flex: none; transition: all .25s; }
+  .agent-main { flex: 1; min-width: 0; }
+  .agent-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+  .agent-name { font-size: 18px; font-weight: 600; }
+  .badge { font-size: 13px; padding: 2px 12px; border: 1px solid #475569; border-radius: 999px; color: var(--soft); }
+  .agent-desc { margin: 0; font-size: 16px; color: var(--muted); }
+  .agent-status { text-align: right; flex: none; min-width: 84px; }
+  .status-label { display: block; font-size: 14px; color: var(--muted); }
+  .status-value { display: block; font-size: 18px; font-weight: 700; color: #e2e8f0; }
+  .chev { font-size: 18px; color: var(--muted); margin-left: 2px; transition: transform .2s; display: none; }
+  .agent.has-output .chev { display: block; }
+  .agent.open .chev { transform: rotate(180deg); }
+
+  .agent[data-status="running"] { border-color: var(--green); box-shadow: 0 0 0 3px rgba(0, 201, 138, .12), 0 0 28px rgba(0, 201, 138, .12); }
+  .agent[data-status="running"] .agent-icon { background: rgba(0, 201, 138, .15); color: var(--green); }
+  .agent[data-status="running"] .agent-icon svg { animation: spin 1s linear infinite; }
+  .agent[data-status="running"] .status-value { color: var(--green); animation: pulse 1.2s ease-in-out infinite; }
+  .agent[data-status="done"] .agent-icon { background: rgba(0, 201, 138, .18); color: var(--green); }
+  .agent[data-status="done"] .status-value { color: var(--green); }
+  .agent[data-status="error"] { border-color: var(--red); }
+  .agent[data-status="error"] .agent-icon { background: rgba(248, 113, 113, .15); color: var(--red); }
+  .agent[data-status="error"] .status-value { color: var(--red); }
+
+  .agent-output { display: none; padding: 0 20px 20px 88px; }
+  .agent.open .agent-output { display: block; }
+  .agent-output .md { background: #0b1224; border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 18px; max-height: 340px; overflow: auto; }
+
+  .connector { display: flex; justify-content: center; align-items: center; height: 34px; color: var(--muted); font-size: 18px; transition: color .25s; }
+  .connector.active { color: var(--green); }
+
+  /* Markdown */
+  .md { font-size: 15px; color: #d5dcea; }
+  .md > :first-child { margin-top: 0; }
+  .md > :last-child { margin-bottom: 0; }
+  .md h3, .md h4, .md h5, .md h6 { margin: 16px 0 6px; color: #fff; font-weight: 600; }
+  .md h3 { font-size: 18px; } .md h4 { font-size: 16px; } .md h5, .md h6 { font-size: 15px; }
+  .md p { margin: 8px 0; }
+  .md ul, .md ol { margin: 8px 0; padding-left: 22px; }
+  .md li { margin: 4px 0; }
+  .md strong { color: #fff; }
+  .md code { background: #1c2740; padding: 1px 6px; border-radius: 6px; font-size: 13.5px; }
+
+  /* Controls */
+  .side { position: sticky; top: 24px; }
+  .sub { background: var(--card); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .sub h3 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+  .sub p { margin: 0; font-size: 15px; color: var(--muted); }
+  .sub label { display: block; margin-bottom: 10px; font-size: 18px; font-weight: 600; }
+  textarea { width: 100%; min-height: 118px; resize: vertical; background: var(--panel); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px 14px; color: var(--text); font: inherit; font-size: 15px; outline: none; transition: border-color .2s; }
+  textarea:focus { border-color: var(--green); }
+  textarea:disabled { opacity: .6; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .chip { background: var(--chip); color: #cbd5e1; padding: 8px 16px; border-radius: 999px; font-size: 14.5px; }
+  .run { width: 100%; height: 50px; border: 0; border-radius: 12px; background: var(--green-btn); color: #fff; font: inherit; font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 12px; cursor: pointer; transition: background .2s, opacity .2s; }
+  .run:hover:not(:disabled) { background: var(--green-btn-hover); }
+  .run:disabled { opacity: .65; cursor: not-allowed; }
+  .run .i { font-size: 20px; }
+  .run.busy .i { animation: spin 1s linear infinite; }
+
+  .copy { display: inline-flex; align-items: center; gap: 8px; background: var(--chip); color: #cbd5e1; border: 0; border-radius: 10px; padding: 8px 14px; font: inherit; font-size: 14px; cursor: pointer; }
+  .copy:hover { background: #2f3b58; }
+  #report-panel { display: none; }
+  #report-panel.show { display: block; animation: fade .4s ease; }
+  #report-panel .md { background: var(--card); border-radius: 14px; padding: 18px 22px; font-size: 16px; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 50% { opacity: .45; } }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } }
+
+  @media (max-width: 960px) {
+    .layout { grid-template-columns: 1fr; }
+    .side { position: static; order: -1; }
+    .wrap { padding: 24px 18px 48px; }
+    .agent-output { padding-left: 20px; }
+  }
+  @media (max-width: 560px) {
+    .agent-row { flex-wrap: wrap; }
+    .agent-status { text-align: left; width: 100%; padding-left: 68px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Multi-Agent Orchestrator</h1>
+      <p class="subtitle">LangGraph-powered agent collaboration for complex task execution</p>
+    </div>
+    <div class="pills">
+      <span class="pill demo" id="demo-pill" hidden>Demo mode</span>
+      <span class="pill" id="system-pill"><span class="dot"></span><span id="system-text">Connecting…</span></span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="col">
+      <section class="panel">
+        <h2 class="panel-title"><svg class="i" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>Agent Graph</h2>
+        <div id="graph"></div>
+      </section>
+
+      <section class="panel" id="report-panel">
+        <h2 class="panel-title">
+          <svg class="i" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          Final Report
+          <span class="spacer"></span>
+          <button class="copy" id="copy-btn" type="button"><svg class="i" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span>Copy</span></button>
+        </h2>
+        <div class="md" id="report"></div>
+      </section>
+    </div>
+
+    <aside class="col side">
+      <section class="panel">
+        <h2 class="panel-title"><svg class="i" viewBox="0 0 24 24"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></svg>Controls</h2>
+
+        <div class="sub">
+          <label for="task">Task</label>
+          <textarea id="task" placeholder="Describe the task for the agents…">Analyze the pros and cons of using LangGraph for multi-agent systems and write a short brief.</textarea>
+        </div>
+
+        <div class="sub">
+          <h3>Orchestration Mode</h3>
+          <p>Sequential agent execution with state passing</p>
+        </div>
+
+        <div class="sub">
+          <h3>Agents</h3>
+          <div class="chips" id="chips"></div>
+        </div>
+
+        <button class="run" id="run" type="button" disabled>
+          <svg class="i" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></svg><span>Run Agents</span>
+        </button>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+const $ = (s, el = document) => el.querySelector(s);
+const svg = (paths) => `<svg class="i" viewBox="0 0 24 24">${paths}</svg>`;
+const ICON = {
+  ready:   svg('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>'),
+  running: svg('<path d="M21 12a9 9 0 1 1-6.219-8.56"/>'),
+  done:    svg('<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>'),
+  error:   svg('<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>'),
+  arrow:   svg('<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>'),
+  chev:    svg('<path d="m6 9 6 6 6-6"/>'),
+  play:    svg('<polygon points="6 3 20 12 6 21 6 3"/>'),
+  loader:  svg('<path d="M21 12a9 9 0 1 1-6.219-8.56"/>'),
+};
+const LABEL = { ready: 'Ready', running: 'Running', done: 'Done', error: 'Failed' };
+
+let agents = [];
+let busy = false;
+let reportText = '';
+
+/* ---------- tiny, safe markdown renderer (escapes HTML first) ---------- */
+function md(src) {
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inline = (s) => esc(s)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
+  let html = '', list = null;
+  const close = () => { if (list) { html += `</${list}>`; list = null; } };
+  for (const raw of src.split('\n')) {
+    const line = raw.trimEnd();
+    let m;
+    if ((m = line.match(/^(#{1,4})\s+(.*)/))) {
+      close(); const l = Math.min(m[1].length + 2, 6); html += `<h${l}>${inline(m[2])}</h${l}>`;
+    } else if ((m = line.match(/^\s*[-*•]\s+(.*)/))) {
+      if (list !== 'ul') { close(); html += '<ul>'; list = 'ul'; } html += `<li>${inline(m[1])}</li>`;
+    } else if ((m = line.match(/^\s*\d+[.)]\s+(.*)/))) {
+      if (list !== 'ol') { close(); html += '<ol>'; list = 'ol'; } html += `<li>${inline(m[1])}</li>`;
+    } else if (!line.trim()) {
+      close();
+    } else {
+      close(); html += `<p>${inline(line)}</p>`;
+    }
+  }
+  close();
+  return html;
+}
+
+/* ---------- rendering ---------- */
+function renderGraph() {
+  $('#graph').innerHTML = agents.map((a, i) => `
+    <div class="agent" id="agent-${a.id}" data-status="ready">
+      <div class="agent-row">
+        <div class="agent-icon">${ICON.ready}</div>
+        <div class="agent-main">
+          <div class="agent-title"><span class="agent-name">${a.name}</span><span class="badge">${a.role}</span></div>
+          <p class="agent-desc">${a.description}</p>
+        </div>
+        <div class="agent-status">
+          <span class="status-label">Status</span>
+          <span class="status-value">Ready</span>
+        </div>
+        <span class="chev">${ICON.chev}</span>
+      </div>
+      <div class="agent-output"><div class="md"></div></div>
+    </div>
+    ${i < agents.length - 1 ? `<div class="connector" id="conn-${a.id}">${ICON.arrow}</div>` : ''}
+  `).join('');
+
+  $('#chips').innerHTML = agents.map((a) => `<span class="chip">${a.name}</span>`).join('');
+
+  agents.forEach((a) => {
+    $(`#agent-${a.id} .agent-row`).addEventListener('click', () => {
+      const el = $(`#agent-${a.id}`);
+      if (el.classList.contains('has-output')) el.classList.toggle('open');
+    });
+  });
+}
+
+function setSystem(kind, text) {
+  const pill = $('#system-pill');
+  pill.className = 'pill' + (kind && kind !== 'ready' ? ' ' + kind : '');
+  $('#system-text').textContent = text;
+}
+
+function setAgent(id, status, { seconds, output } = {}) {
+  const el = $(`#agent-${id}`);
+  if (!el) return;
+  el.dataset.status = status;
+  $('.agent-icon', el).innerHTML = ICON[status] || ICON.ready;
+  $('.status-value', el).textContent = LABEL[status] + (status === 'done' && seconds != null ? ` · ${seconds}s` : '');
+  if (output != null) {
+    $('.md', el).innerHTML = md(output);
+    el.classList.add('has-output');
+    if (status === 'error') el.classList.add('open');
+  }
+}
+
+function resetUI() {
+  agents.forEach((a) => {
+    const el = $(`#agent-${a.id}`);
+    el.classList.remove('has-output', 'open');
+    $('.md', el).innerHTML = '';
+    setAgent(a.id, 'ready');
+    const c = $(`#conn-${a.id}`); if (c) c.classList.remove('active');
+  });
+  $('#report-panel').classList.remove('show');
+  reportText = '';
+}
+
+function setBusy(on) {
+  busy = on;
+  const btn = $('#run');
+  btn.disabled = on;
+  btn.classList.toggle('busy', on);
+  $('svg', btn).outerHTML = on ? ICON.loader : ICON.play;
+  $('span', btn).textContent = on ? 'Running…' : 'Run Agents';
+  $('#task').disabled = on;
+}
+
+/* ---------- event handling ---------- */
+function handle(ev) {
+  if (ev.type === 'agent') {
+    const a = agents.find((x) => x.id === ev.agent);
+    if (ev.status === 'running') {
+      setAgent(ev.agent, 'running');
+      setSystem('running', `Running · ${a ? a.name : ev.agent}`);
+    } else if (ev.status === 'done') {
+      setAgent(ev.agent, 'done', { seconds: ev.seconds, output: ev.output });
+      const c = $(`#conn-${ev.agent}`); if (c) c.classList.add('active');
+    }
+  } else if (ev.type === 'final') {
+    reportText = ev.report || '';
+    $('#report').innerHTML = md(reportText);
+    $('#report-panel').classList.add('show');
+    setSystem('ready', 'Completed');
+    $('#report-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else if (ev.type === 'error') {
+    setAgent(ev.agent, 'error', { output: ev.message });
+    setSystem('error', 'Error');
+  }
+}
+
+async function run() {
+  const task = $('#task').value.trim();
+  if (!task || busy) return;
+  resetUI();
+  setBusy(true);
+  setSystem('running', 'Starting…');
+  try {
+    const res = await fetch('/api/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task }),
+    });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
+        if (chunk.startsWith('data: ')) handle(JSON.parse(chunk.slice(6)));
+      }
+    }
+  } catch (err) {
+    setSystem('error', 'Connection error');
+    console.error(err);
+  } finally {
+    setBusy(false);
+  }
+}
+
+async function init() {
+  try {
+    const cfg = await (await fetch('/api/config')).json();
+    agents = cfg.agents;
+    renderGraph();
+    $('#demo-pill').hidden = !cfg.demo;
+    $('#demo-pill').title = cfg.demo ? 'No API key found: agents return sample output.' : '';
+    setSystem('ready', 'System Ready');
+    $('#run').disabled = false;
+  } catch (err) {
+    setSystem('error', 'Server offline');
+    console.error(err);
+  }
+}
+
+$('#run').addEventListener('click', run);
+$('#task').addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') run(); });
+$('#copy-btn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(reportText);
+    const s = $('#copy-btn span'); s.textContent = 'Copied'; setTimeout(() => (s.textContent = 'Copy'), 1500);
+  } catch (_) { /* clipboard unavailable */ }
+});
+
+init();
+</script>
+</body>
+</html>
